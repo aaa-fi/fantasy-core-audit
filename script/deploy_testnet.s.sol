@@ -18,6 +18,9 @@ contract Deploy is Script {
 
     uint256 protocolFeeBps = 300;
     uint256 wethMinimumPrice = 0;
+    uint256 cardsRequiredForLevelUp = 5;
+    uint256 cardsRequiredForBurnToDraw = 15;
+    uint256 cardsDrawnPerBurn = 1;
 
     function run() external {
         uint256 deployerPrivateKey = vm.envUint("DEPLOYER_PK");
@@ -33,9 +36,14 @@ contract Deploy is Script {
         fantasyCards = new FantasyCards();
         weth = new WrappedETH();
         executionDelegate = new ExecutionDelegate();
-        minter = new Minter(treasury, address(executionDelegate), 5, 15, 1);
+        minter = new Minter(
+            treasury,
+            address(executionDelegate),
+            cardsRequiredForLevelUp,
+            cardsRequiredForBurnToDraw,
+            cardsDrawnPerBurn
+        );
         minter.whiteListCollection(address(fantasyCards));
-
         exchange = new Exchange(treasury, protocolFeeBps, address(executionDelegate));
         exchange.whiteListCollection(address(fantasyCards));
         exchange.whiteListPaymentToken(address(weth), wethMinimumPrice);

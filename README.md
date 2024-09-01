@@ -59,6 +59,11 @@ In an other terminal run:
 $ forge script script/deploy_local.s.sol:Deploy --rpc-url http://127.0.0.1:8545 --broadcast
 ```
 
+### Deploy Mainnet
+```shell
+forge script script/deploy_mainnet.s.sol:Deploy --rpc-url https://rpc.blast.io --broadcast
+```
+
 ### Cast
 
 ```shell
@@ -72,3 +77,59 @@ $ forge --help
 $ anvil --help
 $ cast --help
 ```
+
+
+# MAINNET ADDRESSES
+
+## Official addresses
+TREASURY_ADDRESS:  0x8Ab15fE88a00b03724aC91EE4eE1f998064F2e31
+GOVERNANCE_ADDRESS:  0x87300D35353D21479e0c96B87D9a7997726f4c16
+DEPLOYER 0x70aC9FA233435d1b764DF4e6d2F5C94eB0551918
+MINT_CONFIG_MASTER: 0x70aC9FA233435d1b764DF4e6d2F5C94eB0551918 (deployer)
+PAUSER_ROLE: 0x70aC9FA233435d1b764DF4e6d2F5C94eB0551918 (deployer)
+
+## Official contracts mainnet
+FANTASY COLLECTION:  0x0AAADCf421A3143E5cB2dDB8452c03ae595B0734
+EXECUTION DELEGATE:  0xA11Bf3A1b86A977e3beAb2a2E20c67ffDE9DEF7e
+MINTER:  0x86b58ca576c24F79aD1e5459aee01d40BEA22828
+EXCHANGE:  0x56BFb3a51A7A2D4F685e5107CEE05a58A0F1ad61
+
+# VERIFYING CONTRACTS
+
+## VERIFY EXECUTION DELEGATE
+```shell
+forge verify-contract EXECUTION_DELEGATE_ADDRESS src/ExecutionDelegate.sol:ExecutionDelegate --verifier-url https://api.blastscan.io/api --etherscan-api-key ETHERSCAN_API_KEY  --compiler-version 0.8.20
+```
+
+## VERIFY MINTER
+```shell
+forge verify-contract MINTER_ADDRESS  src/Minter.sol:Minter --verifier-url https://api.blastscan.io/api --etherscan-api-key ETHERSCAN_API_KEY --compiler-version 0.8.20 --constructor-args $(cast abi-encode "constructor(address _treasury, address _executionDelegate, uint256 _cardsRequiredForLevelUp, uint256 _cardsRequiredForBurnToDraw, uint256 _cardsDrawnPerBurn)" TREASURY_ADDRESS EXECUTION ardsRequiredForLevelUp cardsRequiredForBurnToDraw cardsDrawnPerBurn)
+```
+
+## VERIFY FANTASY CARDS
+```shell
+forge verify-contract FANTASY_COLLECTION_ADDRESS src/FantasyCards.sol:FantasyCards --verifier-url https://api.blastscan.io/api --etherscan-api-key ETHERSCAN_API_KEY  --compiler-version 0.8.20
+```
+
+## VERIFY EXCHANGE
+
+```shell
+forge verify-contract EXCHANGE_ADDRESS src/Exchange.sol:Exchange --verifier-url https://api.blastscan.io/api --etherscan-api-key ETHERSCAN_API_KEY  --compiler-version 0.8.20 --constructor-args $(cast abi-encode "constructor(address _protocolFeeRecipient, uint256 _protocolFeeBps, address _executionDelegate)" TREASURY_ADDRESS 300 EXECUTION_DELEGATE) --libraries "src/libraries/OrderLib.sol:OrderLib:ORDERLIB_ADDRESS" --watch
+```
+
+## Official contracts Staging Mainnet
+FANTASY COLLECTION:  0xC8E519e51115F4CE1d4D9FDd27B0D3c0eF26d55D
+EXECUTION DELEGATE:  0x83B56a9C077eF4DC0E2D8e9c3748Fe78242e976F
+MINTER:  0x2742a5d853a0a6C97665bc00F42A67AD8Ca77fBc
+EXCHANGE:  0x1c0f0E8ac40a11ea2DB96E6A3577bDDd15839fa1
+ORDERLIB: 0x09B59376ddce9620D385F75fD4bBb6b1B5C3A6F0
+
+
+<!-- FANTASY COLLECTION: 0x0908f097497054A753763Fa40e1D2c216F9B3847
+EXECUTION DELEGATE: 0x3Da2a1D0C88dc1E5567970C305d09249Fc7ae08a
+MINTER: 0x01655f68D8063234e2E8e069608AfCcA90cbbAf1
+EXCHANGE: 0xDb922BD2c4B3F44d75Aa91A789296410F0f20b0e
+ORDERLIB: 0x98d4B5BFBE71bE9c28DBB7045B9a30B831f53853 -->
+
+
+
