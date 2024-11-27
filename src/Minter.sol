@@ -282,6 +282,27 @@ contract Minter is IMinter, AccessControlDefaultAdminRules, ReentrancyGuard, Lin
         emit BurnToDraw(tokenIds, drawnCardIds, collection, msg.sender);
     }
 
+
+    /**
+     * @notice Burns multiple cards in a single transaction
+     * @dev Iterates through the list of tokenIds and burns each one
+     * @param collection The address of the collection from which the cards will be burned
+     * @param tokenIds The array of tokenIds to be burned
+     */
+    function batchBurn(address collection, uint256[] calldata tokenIds) public {
+        require(tokenIds.length > 0, "no tokens to burn");
+        require(whitelistedCollections[collection], "Collection is not whitelisted");
+        // check that the caller owns all the tokens
+        for (uint i = 0; i < tokenIds.length; i++) {
+            require(IFantasyCards(collection).ownerOf(tokenIds[i]) == msg.sender, "caller does not own one of the tokens");
+        }
+        for (uint i = 0; i < tokenIds.length; i++) {
+            executionDelegate.burnFantasyCard(address(collection), tokenIds[i]);
+        }
+        emit BatchBurn(tokenIds, collection, msg.sender);
+    }
+
+
     /**
      * @notice Updates the NFT collection address for a specific mint configuration
      * @dev Only callable by the contract owner.

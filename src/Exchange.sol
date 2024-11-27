@@ -142,17 +142,24 @@ contract Exchange is IExchange, EIP712, Ownable2Step, ReentrancyGuard {
     }
 
     /**
-     * @notice Cancels an order, preventing it from being executed
+     * @notice Cancels an order, preventing it from being executed. Could use batchCancelOrders with array length 1 instead but keeping it for retrocompatibility
      * @dev Sets the order's hash in the `cancelledOrFilled` mapping to true
      * @param order The order to cancel
      */
     function cancelOrder(OrderLib.Order calldata order) public {
-        require(order.trader == msg.sender, "msg.sender is not the trader");
+        _cancelOrder(order);
+    }
 
-        bytes32 orderHash = OrderLib._hashOrder(order);
-        cancelledOrFilled[orderHash] = true;
 
-        emit CancelOrder(orderHash);
+    /**
+     * @notice Cancels multiple orders in a single transaction
+     * @dev Iterates through the list of orders and calls the internal _cancelOrder function for each order
+     * @param orders The array of orders to be cancelled
+     */
+    function batchCancelOrders(OrderLib.Order[] calldata orders) public {
+        for (uint256 i = 0; i < orders.length; i++) {
+            _cancelOrder(orders[i]);
+        }
     }
 
     /**
@@ -286,6 +293,20 @@ contract Exchange is IExchange, EIP712, Ownable2Step, ReentrancyGuard {
         _executeTokenTransfer(sellOrder.collection, sellOrder.trader, msg.sender, sellOrder.tokenId);
 
         emit Buy(msg.sender, sellOrder, sellOrderHash);
+    }
+
+    /**
+     * @notice Internal function that cancels an order
+     * @dev Requires that the caller is the trader specified in the order. Marks the order as cancelled or filled and emits a CancelOrder event.
+     * @param order The order to be cancelled
+     */
+    function _cancelOrder(OrderLib.Order calldata order) internal {
+        require(order.trader == msg.sender, "msg.sender is not the trader");
+
+        bytes32 orderHash = OrderLib._hashOrder(order);
+        cancelledOrFilled[orderHash] = true;
+
+        emit CancelOrder(orderHash);
     }
 
     /**
