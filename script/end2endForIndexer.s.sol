@@ -103,7 +103,7 @@ contract End2endForIndexer is Script {
         vm.startBroadcast(user2PrivateKey);
         weth.getFaucet(sellOrder.price);
         weth.approve(address(executionDelegate), sellOrder.price);
-        exchange.buy(sellOrder, sellerSignature);
+        exchange.buy(sellOrder, sellerSignature, false);
         vm.stopBroadcast();
 
         // User1 bids on a card

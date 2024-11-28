@@ -70,7 +70,7 @@ contract Buy is BaseTest {
 
         // Execute buy
         cheats.startPrank(user2, user2);
-        exchange.batchBuy{value: totalPrice}(sellOrders, sellerSignatures);
+        exchange.batchBuy{value: totalPrice}(sellOrders, sellerSignatures, new bool[](sellOrders.length));
         cheats.stopPrank();
 
         assertEq(treasury.balance, (totalPrice * exchange.protocolFeeBps()) / exchange.INVERSE_BASIS_POINT());
@@ -134,7 +134,7 @@ contract Buy is BaseTest {
 
         // Execute buy
         cheats.startPrank(user2, user2);
-        exchange.batchBuy(sellOrders, sellerSignatures);
+        exchange.batchBuy(sellOrders, sellerSignatures, new bool[](sellOrders.length));
         cheats.stopPrank();
 
         assertEq(weth.balanceOf(treasury), (totalPrice * exchange.protocolFeeBps()) / exchange.INVERSE_BASIS_POINT());
@@ -198,7 +198,7 @@ contract Buy is BaseTest {
 
         // Execute buy
         cheats.startPrank(user2, user2);
-        exchange.batchBuy{value: 1 ether}(sellOrders, sellerSignatures);
+        exchange.batchBuy{value: 1 ether}(sellOrders, sellerSignatures, new bool[](sellOrders.length));
         cheats.stopPrank();
 
         assertEq(treasury.balance, (1 ether * exchange.protocolFeeBps()) / exchange.INVERSE_BASIS_POINT());
@@ -262,7 +262,7 @@ contract Buy is BaseTest {
         // Execute buy
         cheats.startPrank(user2, user2);
         cheats.expectRevert("Insufficient ETH sent");
-        exchange.batchBuy{value: totalPrice - 1}(sellOrders, sellerSignatures);
+        exchange.batchBuy{value: totalPrice - 1}(sellOrders, sellerSignatures, new bool[](sellOrders.length));
         cheats.stopPrank();
     }
 
@@ -321,7 +321,7 @@ contract Buy is BaseTest {
         // Execute buy
         cheats.startPrank(user2, user2);
         cheats.expectRevert(); // REVIEW: proper error message
-        exchange.batchBuy(sellOrders, sellerSignatures);
+        exchange.batchBuy(sellOrders, sellerSignatures, new bool[](sellOrders.length));
         cheats.stopPrank();
     }
 
@@ -346,7 +346,153 @@ contract Buy is BaseTest {
         // Execute buy
         cheats.startPrank(user2, user2);
         cheats.expectRevert("Array length mismatch");
-        exchange.batchBuy(sellOrders, sellerSignatures);
+        exchange.batchBuy(sellOrders, sellerSignatures, new bool[](sellOrders.length));
         cheats.stopPrank();
+    }
+
+    function test_successful_batchBuy_ETH_with_mixed_burns() public {
+        // Create first sell order
+        OrderLib.Order memory sellOrder1 = OrderLib.Order(
+            user1,
+            OrderLib.Side.Sell,
+            address(fantasyCards),
+            0,
+            address(0),
+            1 ether,
+            999999999999999999999,
+            bytes32(0),
+            100_001
+        );
+
+        // Sign order
+        bytes32 orderHash1 = HashLib.getTypedDataHash(sellOrder1, exchange.domainSeparator());
+        (uint8 vSeller1, bytes32 rSeller1, bytes32 sSeller1) = vm.sign(user1PrivateKey, orderHash1);
+        bytes memory sellerSignature1 = abi.encodePacked(rSeller1, sSeller1, vSeller1);
+
+        // Create second sell order
+        OrderLib.Order memory sellOrder2 = OrderLib.Order(
+            user1,
+            OrderLib.Side.Sell,
+            address(fantasyCards),
+            1,
+            address(0),
+            2 ether,
+            999999999999999999999,
+            bytes32(0),
+            100_001
+        );
+
+        // Sign order
+        bytes32 orderHash2 = HashLib.getTypedDataHash(sellOrder2, exchange.domainSeparator());
+        (uint8 vSeller2, bytes32 rSeller2, bytes32 sSeller2) = vm.sign(user1PrivateKey, orderHash2);
+        bytes memory sellerSignature2 = abi.encodePacked(rSeller2, sSeller2, vSeller2);
+
+        uint256 totalPrice = sellOrder1.price + sellOrder2.price;
+
+        cheats.deal(user2, totalPrice);
+
+        OrderLib.Order[] memory sellOrders = new OrderLib.Order[](2);
+        sellOrders[0] = sellOrder1;
+        sellOrders[1] = sellOrder2;
+        bytes[] memory sellerSignatures = new bytes[](2);
+        sellerSignatures[0] = sellerSignature1;
+        sellerSignatures[1] = sellerSignature2;
+        
+        bool[] memory burnFlags = new bool[](2);
+        burnFlags[0] = true;  // Burn first NFT
+        burnFlags[1] = false; // Keep second NFT
+
+        // Execute buy
+        cheats.startPrank(user2, user2);
+        exchange.batchBuy{value: totalPrice}(sellOrders, sellerSignatures, burnFlags);
+        cheats.stopPrank();
+
+        // Check balances
+        assertEq(treasury.balance, (totalPrice * exchange.protocolFeeBps()) / exchange.INVERSE_BASIS_POINT());
+        assertEq(user1.balance, totalPrice - treasury.balance);
+        assertEq(user2.balance, 0);
+        assertEq(fantasyCards.balanceOf(user1), 0);
+        // User2 should only have the second NFT
+        assertEq(fantasyCards.balanceOf(user2), 1);
+        // Verify first token was burned - using correct error encoding
+        vm.expectRevert(abi.encodeWithSignature("ERC721NonexistentToken(uint256)", 0));
+        fantasyCards.ownerOf(0);
+        // Verify second token exists and belongs to user2
+        assertEq(fantasyCards.ownerOf(1), user2);
+    }
+
+    function test_successful_batchBuy_WETH_with_all_burns() public {
+        // Create first sell order
+        OrderLib.Order memory sellOrder1 = OrderLib.Order(
+            user1,
+            OrderLib.Side.Sell,
+            address(fantasyCards),
+            0,
+            address(weth),
+            1 ether,
+            999999999999999999999,
+            bytes32(0),
+            100_001
+        );
+
+        // Sign order
+        bytes32 orderHash1 = HashLib.getTypedDataHash(sellOrder1, exchange.domainSeparator());
+        (uint8 vSeller1, bytes32 rSeller1, bytes32 sSeller1) = vm.sign(user1PrivateKey, orderHash1);
+        bytes memory sellerSignature1 = abi.encodePacked(rSeller1, sSeller1, vSeller1);
+
+        // Create second sell order
+        OrderLib.Order memory sellOrder2 = OrderLib.Order(
+            user1,
+            OrderLib.Side.Sell,
+            address(fantasyCards),
+            1,
+            address(weth),
+            2 ether,
+            999999999999999999999,
+            bytes32(0),
+            100_001
+        );
+
+        // Sign order
+        bytes32 orderHash2 = HashLib.getTypedDataHash(sellOrder2, exchange.domainSeparator());
+        (uint8 vSeller2, bytes32 rSeller2, bytes32 sSeller2) = vm.sign(user1PrivateKey, orderHash2);
+        bytes memory sellerSignature2 = abi.encodePacked(rSeller2, sSeller2, vSeller2);
+
+        uint256 totalPrice = sellOrder1.price + sellOrder2.price;
+
+        // Give WETH allowance
+        cheats.startPrank(user2);
+        weth.getFaucet(totalPrice);
+        weth.approve(address(executionDelegate), totalPrice);
+        cheats.stopPrank();
+
+        OrderLib.Order[] memory sellOrders = new OrderLib.Order[](2);
+        sellOrders[0] = sellOrder1;
+        sellOrders[1] = sellOrder2;
+        bytes[] memory sellerSignatures = new bytes[](2);
+        sellerSignatures[0] = sellerSignature1;
+        sellerSignatures[1] = sellerSignature2;
+        
+        bool[] memory burnFlags = new bool[](2);
+        burnFlags[0] = true;
+        burnFlags[1] = true;
+
+        // Execute buy
+        cheats.startPrank(user2, user2);
+        exchange.batchBuy(sellOrders, sellerSignatures, burnFlags);
+        cheats.stopPrank();
+
+        // Check balances
+        assertEq(weth.balanceOf(treasury), (totalPrice * exchange.protocolFeeBps()) / exchange.INVERSE_BASIS_POINT());
+        assertEq(weth.balanceOf(user1), totalPrice - weth.balanceOf(treasury));
+        assertEq(weth.balanceOf(user2), 0);
+        assertEq(fantasyCards.balanceOf(user1), 0);
+        // User2 should have no NFTs as they were all burned
+        assertEq(fantasyCards.balanceOf(user2), 0);
+        // Verify both tokens were burned - using correct error encoding
+        vm.expectRevert(abi.encodeWithSignature("ERC721NonexistentToken(uint256)", 0));
+        fantasyCards.ownerOf(0);
+        vm.expectRevert(abi.encodeWithSignature("ERC721NonexistentToken(uint256)", 1));
+        fantasyCards.ownerOf(1);
     }
 }

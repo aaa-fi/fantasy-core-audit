@@ -46,7 +46,7 @@ contract Buy_fuzz is BaseTest {
 
         // Execute buy
         cheats.startPrank(user2, user2);
-        exchange.buy(sellOrder, sellerSignature);
+        exchange.buy(sellOrder, sellerSignature, false);
         cheats.stopPrank();
 
         // Check balances
@@ -85,7 +85,7 @@ contract Buy_fuzz is BaseTest {
 
         // Execute buy
         cheats.startPrank(user2, user2);
-        exchange.buy{value: sellOrder.price}(sellOrder, sellerSignature);
+        exchange.buy{value: sellOrder.price}(sellOrder, sellerSignature, false);
         cheats.stopPrank();
 
         // Check balances

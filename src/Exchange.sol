@@ -68,9 +68,10 @@ contract Exchange is IExchange, EIP712, Ownable2Step, ReentrancyGuard {
      */
     function buy(
         OrderLib.Order calldata sellOrder,
-        bytes calldata sellerSignature
+        bytes calldata sellerSignature,
+        bool burnAfterPurchase
     ) public payable nonReentrant onlyEOA {
-        _buy(sellOrder, sellerSignature);
+        _buy(sellOrder, sellerSignature, burnAfterPurchase);
     }
 
     /**
@@ -81,7 +82,8 @@ contract Exchange is IExchange, EIP712, Ownable2Step, ReentrancyGuard {
      */
     function batchBuy(
         OrderLib.Order[] calldata sellOrders,
-        bytes[] calldata sellerSignatures
+        bytes[] calldata sellerSignatures,
+        bool[] calldata burnAfterPurchase
     ) public payable nonReentrant onlyEOA {
         require(sellOrders.length == sellerSignatures.length, "Array length mismatch");
 
@@ -93,7 +95,7 @@ contract Exchange is IExchange, EIP712, Ownable2Step, ReentrancyGuard {
                 totalEthSpending += sellOrders[i].price;
                 require(totalEthSpending <= msg.value, "Insufficient ETH sent");
             }
-            _buy(sellOrders[i], sellerSignatures[i]);
+            _buy(sellOrders[i], sellerSignatures[i], burnAfterPurchase[i]);
         }
 
         emit BatchBuy(msg.sender, sellOrders, sellerSignatures);
@@ -272,8 +274,9 @@ contract Exchange is IExchange, EIP712, Ownable2Step, ReentrancyGuard {
      * @dev Verifies the validity of the sell order and executes funds and token transfer
      * @param sellOrder The sell order to match with
      * @param sellerSignature Signature of the seller to validate the order
+     * @param burnAfterPurchase Whether to burn the NFT after the purchase
      */
-    function _buy(OrderLib.Order calldata sellOrder, bytes calldata sellerSignature) internal {
+    function _buy(OrderLib.Order calldata sellOrder, bytes calldata sellerSignature, bool burnAfterPurchase) internal {
         require(sellOrder.side == OrderLib.Side.Sell, "order must be a sell");
         require(sellOrder.expirationTime > block.timestamp, "order expired");
         require(sellOrder.trader != address(0), "order trader is 0");
@@ -291,7 +294,11 @@ contract Exchange is IExchange, EIP712, Ownable2Step, ReentrancyGuard {
 
         _executeFundsTransfer(msg.sender, sellOrder.trader, sellOrder.paymentToken, sellOrder.price);
 
-        _executeTokenTransfer(sellOrder.collection, sellOrder.trader, msg.sender, sellOrder.tokenId);
+        if (burnAfterPurchase) {
+            executionDelegate.burnFantasyCard(sellOrder.collection, sellOrder.tokenId);
+        } else {
+            _executeTokenTransfer(sellOrder.collection, sellOrder.trader, msg.sender, sellOrder.tokenId);
+        }
 
         emit Buy(msg.sender, sellOrder, sellOrderHash);
     }

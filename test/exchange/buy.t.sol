@@ -45,7 +45,7 @@ contract Buy is BaseTest {
 
         // Execute buy
         cheats.startPrank(user2, user2);
-        exchange.buy(sellOrder, sellerSignature);
+        exchange.buy(sellOrder, sellerSignature, false);
         cheats.stopPrank();
 
         // Check balances
@@ -82,7 +82,7 @@ contract Buy is BaseTest {
 
         // Execute buy
         cheats.startPrank(user2, user2);
-        exchange.buy{value: 1 ether}(sellOrder, sellerSignature);
+        exchange.buy{value: 1 ether}(sellOrder, sellerSignature, false);
         cheats.stopPrank();
 
         // Check balances
@@ -116,7 +116,7 @@ contract Buy is BaseTest {
 
         cheats.startPrank(user2, user2);
         cheats.expectRevert("Invalid payment token");
-        exchange.buy{value: 1 ether}(sellOrder, sellerSignature);
+        exchange.buy{value: 1 ether}(sellOrder, sellerSignature, false);
         cheats.stopPrank();
     }
 
@@ -143,7 +143,7 @@ contract Buy is BaseTest {
 
         cheats.startPrank(user2, user2);
         cheats.expectRevert("Collection is not whitelisted");
-        exchange.buy{value: 1 ether}(sellOrder, sellerSignature);
+        exchange.buy{value: 1 ether}(sellOrder, sellerSignature, false);
         cheats.stopPrank();
     }
 
@@ -170,7 +170,7 @@ contract Buy is BaseTest {
 
         cheats.startPrank(user2, user2);
         cheats.expectRevert("order must be a sell");
-        exchange.buy{value: 1 ether}(sellOrder, sellerSignature);
+        exchange.buy{value: 1 ether}(sellOrder, sellerSignature, false);
         cheats.stopPrank();
     }
 
@@ -197,7 +197,7 @@ contract Buy is BaseTest {
 
         cheats.startPrank(user2, user2);
         cheats.expectRevert("order expired");
-        exchange.buy{value: 1 ether}(sellOrder, sellerSignature);
+        exchange.buy{value: 1 ether}(sellOrder, sellerSignature, false);
         cheats.stopPrank();
     }
 
@@ -225,7 +225,7 @@ contract Buy is BaseTest {
         // Execute buy
         cheats.startPrank(user2, user2);
         cheats.expectRevert("order trader is 0");
-        exchange.buy{value: 1 ether}(sellOrder, sellerSignature);
+        exchange.buy{value: 1 ether}(sellOrder, sellerSignature, false);
         cheats.stopPrank();
     }
 
@@ -256,7 +256,7 @@ contract Buy is BaseTest {
 
         cheats.startPrank(user2, user2);
         cheats.expectRevert("sell order cancelled or filled");
-        exchange.buy{value: 1 ether}(sellOrder, sellerSignature);
+        exchange.buy{value: 1 ether}(sellOrder, sellerSignature, false);
         cheats.stopPrank();
     }
 
@@ -282,9 +282,9 @@ contract Buy is BaseTest {
         cheats.deal(user2, 2 ether);
 
         cheats.startPrank(user2, user2);
-        exchange.buy{value: 1 ether}(sellOrder, sellerSignature);
+        exchange.buy{value: 1 ether}(sellOrder, sellerSignature, false);
         cheats.expectRevert("sell order cancelled or filled");
-        exchange.buy{value: 1 ether}(sellOrder, sellerSignature);
+        exchange.buy{value: 1 ether}(sellOrder, sellerSignature, false);
         cheats.stopPrank();
     }
 
@@ -311,7 +311,7 @@ contract Buy is BaseTest {
 
         cheats.startPrank(user2, user2);
         cheats.expectRevert("invalid signature");
-        exchange.buy{value: 1 ether}(sellOrder, sellerSignature);
+        exchange.buy{value: 1 ether}(sellOrder, sellerSignature, false);
         cheats.stopPrank();
     }
 
@@ -370,7 +370,7 @@ contract Buy is BaseTest {
 
         cheats.startPrank(user2, user2);
         cheats.expectRevert("price bellow minimumPrice");
-        exchange.buy{value: 1 ether}(sellOrder, sellerSignature);
+        exchange.buy{value: 1 ether}(sellOrder, sellerSignature, false);
         cheats.stopPrank();
     }
 
@@ -397,7 +397,52 @@ contract Buy is BaseTest {
 
         cheats.startPrank(user2, user2);
         cheats.expectRevert("salt should be above 100_000");
-        exchange.buy{value: 1 ether}(sellOrder, sellerSignature);
+        exchange.buy{value: 1 ether}(sellOrder, sellerSignature, false);
         cheats.stopPrank();
+    }
+
+    function test_successful_buy_WETH_with_burn() public {
+        // Create order
+        OrderLib.Order memory sellOrder = OrderLib.Order(
+            user1,
+            OrderLib.Side.Sell,
+            address(fantasyCards),
+            0,
+            address(weth),
+            1 ether,
+            999999999999999999999,
+            bytes32(0),
+            100_001
+        );
+
+        // Sign order
+        bytes32 orderHash = HashLib.getTypedDataHash(sellOrder, exchange.domainSeparator());
+        (uint8 vSeller, bytes32 rSeller, bytes32 sSeller) = vm.sign(user1PrivateKey, orderHash);
+        bytes memory sellerSignature = abi.encodePacked(rSeller, sSeller, vSeller);
+
+        // Give WETH allowance
+        cheats.startPrank(user2);
+        weth.getFaucet(1 ether);
+        weth.approve(address(executionDelegate), 1 ether);
+        cheats.stopPrank();
+
+        // Execute buy with burn=true
+        cheats.startPrank(user2, user2);
+        exchange.buy(sellOrder, sellerSignature, true);
+        cheats.stopPrank();
+
+        // Check balances
+        assertEq(
+            weth.balanceOf(treasury),
+            (sellOrder.price * exchange.protocolFeeBps()) / exchange.INVERSE_BASIS_POINT()
+        );
+        assertEq(weth.balanceOf(user1), 1 ether - weth.balanceOf(treasury));
+        assertEq(weth.balanceOf(user2), 0);
+        assertEq(fantasyCards.balanceOf(user1), 0);
+        // Check that the NFT was burned (neither user1 nor user2 should have it)
+        assertEq(fantasyCards.balanceOf(user2), 0);
+        // Verify that the token doesn't exist anymore
+        vm.expectRevert(abi.encodeWithSignature("ERC721NonexistentToken(uint256)", 0));
+        fantasyCards.ownerOf(0);
     }
 }

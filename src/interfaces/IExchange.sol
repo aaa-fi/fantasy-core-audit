@@ -20,7 +20,7 @@ interface IExchange {
     event NewMinimumPricePerPaymentToken(address paymentToken, uint256 minimuPrice);
 
     /* Functions */
-    function buy(OrderLib.Order calldata sellOrder, bytes calldata sellerSignature) external payable;
+    function buy(OrderLib.Order calldata sellOrder, bytes calldata sellerSignature, bool burnAfterPurchase) external payable;
 
     function sell(
         OrderLib.Order calldata buyOrder,
