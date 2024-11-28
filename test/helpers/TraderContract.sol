@@ -35,7 +35,7 @@ contract TraderContract {
         bytes[] calldata sellerSignatures
     ) external payable {
         // Directly call the batchBuy function of the Exchange contract
-        exchange.batchBuy{value: msg.value}(sellOrders, sellerSignatures, new bool[](sellOrders.length));
+        exchange.batchBuy{value: msg.value}(sellOrders, sellerSignatures, false);
     }
 
     // Function to initiate a sell on the Exchange contract

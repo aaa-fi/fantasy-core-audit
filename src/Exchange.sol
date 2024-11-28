@@ -83,7 +83,7 @@ contract Exchange is IExchange, EIP712, Ownable2Step, ReentrancyGuard {
     function batchBuy(
         OrderLib.Order[] calldata sellOrders,
         bytes[] calldata sellerSignatures,
-        bool[] calldata burnAfterPurchase
+        bool burnAfterPurchase
     ) public payable nonReentrant onlyEOA {
         require(sellOrders.length == sellerSignatures.length, "Array length mismatch");
 
@@ -95,10 +95,14 @@ contract Exchange is IExchange, EIP712, Ownable2Step, ReentrancyGuard {
                 totalEthSpending += sellOrders[i].price;
                 require(totalEthSpending <= msg.value, "Insufficient ETH sent");
             }
-            _buy(sellOrders[i], sellerSignatures[i], burnAfterPurchase[i]);
+            _buy(sellOrders[i], sellerSignatures[i], burnAfterPurchase);
         }
 
-        emit BatchBuy(msg.sender, sellOrders, sellerSignatures);
+        if (burnAfterPurchase) {
+            emit BatchBuyAndBurn(msg.sender, sellOrders, sellerSignatures);
+        } else {
+            emit BatchBuy(msg.sender, sellOrders, sellerSignatures);
+        }
     }
 
     /**
