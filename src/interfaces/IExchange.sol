@@ -7,6 +7,8 @@ interface IExchange {
     /* Events */
     event Buy(address indexed buyer, OrderLib.Order sell, bytes32 sellOrderHash);
     event Sell(address indexed seller, OrderLib.Order buyOrder, uint256 tokenId, bytes32 buyOrderHash);
+    event BatchBuy(address indexed buyer, OrderLib.Order[] sellOrders, bytes[] sellerSignatures);
+    event BatchSell(address indexed seller, OrderLib.Order[] buyOrders, uint256[] tokenIds, bytes32[][] merkleProofs);
     event CancelOrder(bytes32 orderHash);
     event NewWhitelistedPaymentToken(address paymentToken);
     event UnWhitelistedPaymentToken(address paymentToken);

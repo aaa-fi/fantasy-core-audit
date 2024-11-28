@@ -95,6 +95,8 @@ contract Exchange is IExchange, EIP712, Ownable2Step, ReentrancyGuard {
             }
             _buy(sellOrders[i], sellerSignatures[i]);
         }
+
+        emit BatchBuy(msg.sender, sellOrders, sellerSignatures);
     }
 
     /**
@@ -111,34 +113,33 @@ contract Exchange is IExchange, EIP712, Ownable2Step, ReentrancyGuard {
         uint256 tokenId,
         bytes32[] calldata merkleProof
     ) public payable nonReentrant onlyEOA {
-        require(buyOrder.paymentToken != address(0), "payment token can not be ETH for buy order");
-        require(buyOrder.side == OrderLib.Side.Buy, "order must be a buy");
-        require(buyOrder.expirationTime > block.timestamp, "order expired");
-        require(buyOrder.trader != address(0), "order trader is 0");
-        require(buyOrder.price >= minimumPricePerPaymentToken[buyOrder.paymentToken], "price bellow minimumPrice");
-        require(buyOrder.salt > 100_000, "salt should be above 100_000");
+        _sell(buyOrder, buyerSignature, tokenId, merkleProof);
+    }
 
-        bytes32 buyOrderHash = OrderLib._hashOrder(buyOrder);
-        require(cancelledOrFilled[buyOrderHash] == false, "buy order cancelled or filled");
 
-        bytes32 buyOrderDigest = _hashTypedDataV4(buyOrderHash);
-        address buyOrderSigner = ECDSA.recover(buyOrderDigest, buyerSignature);
-        require(buyOrderSigner == buyOrder.trader, "invalid signature");
+    /**
+     * @notice Executes multiple sell transactions in one call.
+     * @dev Iterates over `buyOrders`, `buyerSignatures`, `tokenIds`, and `merkleProofs`, executing each through `_sell`.
+     * @param buyOrders Array of buy orders, each following `OrderLib.Order` structure.
+     * @param buyerSignatures Array of signatures, each corresponding to a buy order in `buyOrders`.
+     * @param tokenIds Array of token IDs, each corresponding to a buy order in `buyOrders`.
+     * @param merkleProofs Array of merkle proofs, each corresponding to a token ID in `tokenIds`.
+     */
+    function batchSell(
+        OrderLib.Order[] calldata buyOrders,
+        bytes[] calldata buyerSignatures,
+        uint256[] calldata tokenIds,
+        bytes32[][] calldata merkleProofs
+    ) public payable nonReentrant onlyEOA {
+        require(buyOrders.length == buyerSignatures.length, "Array length mismatch");
+        require(buyOrders.length == tokenIds.length, "Array length mismatch");
+        require(buyOrders.length == merkleProofs.length, "Array length mismatch");
 
-        require(_verifyTokenId(buyOrder.merkleRoot, merkleProof, tokenId), "invalid tokenId");
+        for (uint256 i = 0; i < buyOrders.length; i++) {
+            _sell(buyOrders[i], buyerSignatures[i], tokenIds[i], merkleProofs[i]);
+        }
 
-        cancelledOrFilled[buyOrderHash] = true;
-
-        _executeFundsTransfer(buyOrder.trader, msg.sender, buyOrder.paymentToken, buyOrder.price);
-
-        _executeTokenTransfer(buyOrder.collection, msg.sender, buyOrder.trader, tokenId);
-
-        emit Sell(
-            msg.sender, // Seller's address
-            buyOrder, // The buy order details
-            tokenId, // The ID of the token being sold
-            buyOrderHash // The hash of the buy order
-        );
+        emit BatchSell(msg.sender, buyOrders, tokenIds, merkleProofs);
     }
 
     /**
@@ -293,6 +294,50 @@ contract Exchange is IExchange, EIP712, Ownable2Step, ReentrancyGuard {
         _executeTokenTransfer(sellOrder.collection, sellOrder.trader, msg.sender, sellOrder.tokenId);
 
         emit Buy(msg.sender, sellOrder, sellOrderHash);
+    }
+
+    /**
+     * @notice Internal function that executes a sell operation for a buy order
+     * @dev Verifies the validity of the buy order and executes funds and token transfer
+     * @param buyOrder The buy order to match with
+     * @param buyerSignature Signature of the buyer to validate the order
+     * @param tokenId The ID of the token being sold
+     * @param merkleProof The merkle proof verifying the tokenId belongs to the merkle root in the buy order
+     */
+    function _sell(
+        OrderLib.Order calldata buyOrder, 
+        bytes calldata buyerSignature, 
+        uint256 tokenId, 
+        bytes32[] calldata merkleProof
+    ) internal {
+        require(buyOrder.paymentToken != address(0), "payment token can not be ETH for buy order");
+        require(buyOrder.side == OrderLib.Side.Buy, "order must be a buy");
+        require(buyOrder.expirationTime > block.timestamp, "order expired");
+        require(buyOrder.trader != address(0), "order trader is 0");
+        require(buyOrder.price >= minimumPricePerPaymentToken[buyOrder.paymentToken], "price bellow minimumPrice");
+        require(buyOrder.salt > 100_000, "salt should be above 100_000");
+
+        bytes32 buyOrderHash = OrderLib._hashOrder(buyOrder);
+        require(cancelledOrFilled[buyOrderHash] == false, "buy order cancelled or filled");
+
+        bytes32 buyOrderDigest = _hashTypedDataV4(buyOrderHash);
+        address buyOrderSigner = ECDSA.recover(buyOrderDigest, buyerSignature);
+        require(buyOrderSigner == buyOrder.trader, "invalid signature");
+
+        require(_verifyTokenId(buyOrder.merkleRoot, merkleProof, tokenId), "invalid tokenId");
+
+        cancelledOrFilled[buyOrderHash] = true;
+
+        _executeFundsTransfer(buyOrder.trader, msg.sender, buyOrder.paymentToken, buyOrder.price);
+
+        _executeTokenTransfer(buyOrder.collection, msg.sender, buyOrder.trader, tokenId);
+
+        emit Sell(
+            msg.sender, // Seller's address
+            buyOrder, // The buy order details
+            tokenId, // The ID of the token being sold
+            buyOrderHash // The hash of the buy order
+        );
     }
 
     /**
