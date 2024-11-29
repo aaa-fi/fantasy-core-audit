@@ -139,6 +139,69 @@ contract Minter is IMinter, AccessControlDefaultAdminRules, ReentrancyGuard, Lin
     }
 
     /**
+     * @notice Admin function to mints packs based on the specified mint configuration to multiple recipients
+     * @dev Requires the mint configuration not to be cancelled, the user to be whitelisted (if applicable), and not to have minted before (if applicable). Transfers the payment and mints the NFTs.
+     * @param configId ID of the mint configuration to use
+     * @param merkleProof Proof for whitelist verification, if required
+     * @param maxPrice Maximum price the user is willing to pay
+     * @param recipients Addresses to mint packs to
+     */
+    function batchMintCardsTo(uint256 configId, bytes32[] calldata merkleProof, uint256 maxPrice, address[] calldata recipients) public payable nonReentrant onlyEOA onlyRole(MINT_CONFIG_MASTER) {
+        for (uint i = 0; i < recipients.length; i++) {
+            _mintCardsTo(configId, merkleProof, maxPrice, recipients[i]);
+        }
+    }
+
+    /**
+     * @dev Internal function to mint packs based on the specified mint configuration to a single recipient. This function is a very close cousin of the mint function.
+     * @param configId ID of the mint configuration to use
+     * @param merkleProof Proof for whitelist verification, if required
+     * @param maxPrice Maximum price the user is willing to pay
+     * @param recipient Address to mint packs to
+     */
+    function _mintCardsTo(uint256 configId, bytes32[] calldata merkleProof, uint256 maxPrice, address recipient) internal {
+        MintConfig storage mintConfig = mintConfigs[configId];
+        require(mintConfig.startTimestamp <= block.timestamp, "Mint config not started");
+        require(
+            mintConfig.expirationTimestamp == 0 || mintConfig.expirationTimestamp > block.timestamp,
+            "Mint config expired"
+        );
+        require(!mintConfig.cancelled, "Mint config cancelled");
+        require(
+            !mintConfig.requiresWhitelist || _verifyWhitelist(mintConfig.merkleRoot, merkleProof, recipient),
+            "User not whitelisted"
+        );
+        require(
+            mintConfig.maxPacksPerAddress == 0 ||
+                mintConfig.amountMintedPerAddress[recipient] < mintConfig.maxPacksPerAddress,
+            "User reached max mint limit"
+        );
+        require(mintConfig.maxPacks > mintConfig.totalMintedPacks, "No packs left");
+
+        // compute the price before incrementing the total packs minted since it will push the price up otherwise
+        uint256 price = getPackPrice(configId);
+        require(price <= maxPrice, "Price too high");
+
+        mintConfig.totalMintedPacks += 1;
+        mintConfig.amountMintedPerAddress[recipient] += 1;
+
+        _executeFundsTransfer(mintConfig.paymentToken, recipient, treasury, price);
+
+        uint256 firstTokenId = IFantasyCards(mintConfig.collection).tokenCounter();
+
+        _executeBatchMint(mintConfig.collection, mintConfig.cardsPerPack, recipient);
+
+        emit Mint(
+            configId,
+            recipient,
+            mintConfig.totalMintedPacks,
+            firstTokenId,
+            firstTokenId + mintConfig.cardsPerPack - 1,
+            price
+        );
+    }
+
+    /**
      * @notice Creates a new mint configuration
      * @dev Only callable by the contract owner. Emits a NewMintConfig event upon success.
      * @param collection Address of the NFT collection for the packs

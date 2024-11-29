@@ -55,4 +55,13 @@ contract TraderContract {
     function mintOnMinter(uint256 configId, bytes32[] calldata merkleProof, uint256 maxPrice) public {
         minter.mint(configId, merkleProof, maxPrice);
     }
+
+    function batchMintToOnMinter(
+        uint256 configId,
+        bytes32[] calldata merkleProof,
+        uint256 maxPrice,
+        address[] calldata recipients
+    ) external payable {
+        minter.batchMintCardsTo(configId, merkleProof, maxPrice, recipients);
+    }
 }
