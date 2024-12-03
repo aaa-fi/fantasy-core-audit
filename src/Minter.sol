@@ -317,12 +317,33 @@ contract Minter is IMinter, AccessControlDefaultAdminRules, ReentrancyGuard, Lin
     }
 
     /**
-     * @notice Allows a user to burn their hero cards to draw new random cards
-     * @dev Burns the specified amount of cards (tokens) to draw (a) new card(s). The burnToDraw happens at the metadata level. Using this method directly might result in loss of cards if the cards do not meet the game rules.
-     * @param tokenIds An array of token IDs representing the cards to be burned
+     * @notice Allows a user to burn their hero cards to draw new random cards. This function is provided for backward compatibility and convenience, although similar functionality can be achieved using
+     * `batchBurnToDraw` with an array containing a single burn.
+     * @dev Burns the specified amount of cards to draw new cards. The burnToDraw happens at the metadata level. Using this method directly might result in loss of cards if the cards do not meet the game rules.
+     * @param tokenIds An array of token IDs representing the cards to be burned.
      * @param collection The address of the NFT collection from which the cards will be burned and the new card(s) will be minted.
      */
     function burnToDraw(uint256[] calldata tokenIds, address collection) public {
+       _burnToDraw(tokenIds, collection);
+    }
+
+    /**
+     * @notice Allows a user to burn multiple sets of cards to draw new cards
+     * @param tokenIds An array of token IDs arrays representing the cards to be burned. Each internal array represents a different burn.
+     * @param collection The address of the NFT collection from which the cards will be burned and the new card(s) will be minted.
+     */
+    function batchBurnToDraw(uint256[][] calldata tokenIds, address collection) public {
+        for (uint i = 0; i < tokenIds.length; i++) {
+            _burnToDraw(tokenIds[i], collection);
+        }
+    }
+
+    /**
+     * @dev Internal function to burn cards to draw new cards
+     * @param tokenIds An array of token IDs representing the cards to be burned
+     * @param collection The address of the NFT collection from which the cards will be burned and the new card(s) will be minted.
+    */
+    function _burnToDraw(uint256[] calldata tokenIds, address collection) internal {
         require(whitelistedCollections[collection], "Collection is not whitelisted");
         require(tokenIds.length == cardsRequiredForBurnToDraw, "wrong amount of cards to draw new cards");
 

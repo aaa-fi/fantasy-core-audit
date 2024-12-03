@@ -79,6 +79,7 @@ contract Exchange is IExchange, EIP712, Ownable2Step, ReentrancyGuard {
      * @dev Iterates over `sellOrders` and `sellerSignatures`, executing each through `_buy`.
      * @param sellOrders Array of sell orders, each following `OrderLib.Order` structure.
      * @param sellerSignatures Array of signatures, each corresponding to a sell order in `sellOrders`.
+     * @param burnAfterPurchase Whether to burn the NFT(s) after the purchase
      */
     function batchBuy(
         OrderLib.Order[] calldata sellOrders,
@@ -149,7 +150,8 @@ contract Exchange is IExchange, EIP712, Ownable2Step, ReentrancyGuard {
     }
 
     /**
-     * @notice Cancels an order, preventing it from being executed. Could use batchCancelOrders with array length 1 instead but keeping it for retrocompatibility
+     * @notice Cancels an order, preventing it from being executed. This function is provided for backward compatibility and convenience, although similar functionality can be achieved using
+     * `batchCancelOrders` with an array containing a single order.
      * @dev Sets the order's hash in the `cancelledOrFilled` mapping to true
      * @param order The order to cancel
      */
@@ -159,7 +161,7 @@ contract Exchange is IExchange, EIP712, Ownable2Step, ReentrancyGuard {
 
 
     /**
-     * @notice Cancels multiple orders in a single transaction
+     * @notice Cancels multiple orders in a single transaction to save gas and streamline order management.
      * @dev Iterates through the list of orders and calls the internal _cancelOrder function for each order
      * @param orders The array of orders to be cancelled
      */
