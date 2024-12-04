@@ -51,8 +51,12 @@ contract BatchMintTo is BaseTest {
             mintConfig.startTimestamp,
             mintConfig.expirationTimestamp
         );
-        
-        minter.batchMintCardsTo(0, new bytes32[](0), 1 ether, recipients);
+
+        bytes32[][] memory merkleProofs = new bytes32[][](2);
+        merkleProofs[0] = new bytes32[](0);
+        merkleProofs[1] = new bytes32[](0);
+
+        minter.batchMintCardsTo(0, merkleProofs, 1 ether, recipients);
         cheats.stopPrank();
 
         assertEq(fantasyCards.balanceOf(user1), mintConfig.cardsPerPack);

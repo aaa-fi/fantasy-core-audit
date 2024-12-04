@@ -142,13 +142,13 @@ contract Minter is IMinter, AccessControlDefaultAdminRules, ReentrancyGuard, Lin
      * @notice Admin function to mints packs based on the specified mint configuration to multiple recipients
      * @dev Requires the mint configuration not to be cancelled, the user to be whitelisted (if applicable), and not to have minted before (if applicable). Transfers the payment and mints the NFTs.
      * @param configId ID of the mint configuration to use
-     * @param merkleProof Proof for whitelist verification, if required
+     * @param merkleProofs Proofs for whitelist verifications, if required
      * @param maxPrice Maximum price the user is willing to pay
      * @param recipients Addresses to mint packs to
      */
-    function batchMintCardsTo(uint256 configId, bytes32[] calldata merkleProof, uint256 maxPrice, address[] calldata recipients) public payable nonReentrant onlyEOA onlyRole(MINT_CONFIG_MASTER) {
+    function batchMintCardsTo(uint256 configId, bytes32[][] calldata merkleProofs, uint256 maxPrice, address[] calldata recipients) public payable nonReentrant onlyEOA onlyRole(MINT_CONFIG_MASTER) {
         for (uint i = 0; i < recipients.length; i++) {
-            _mintCardsTo(configId, merkleProof, maxPrice, recipients[i]);
+            _mintCardsTo(configId, merkleProofs[i], maxPrice, recipients[i]);
         }
     }
 
