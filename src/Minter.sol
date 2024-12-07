@@ -148,6 +148,7 @@ contract Minter is IMinter, AccessControlDefaultAdminRules, ReentrancyGuard, Lin
      */
     function batchMintCardsTo(uint256 configId, bytes32[][] calldata merkleProofs, uint256 maxPrice, address[] calldata recipients) public payable nonReentrant onlyEOA onlyRole(MINT_CONFIG_MASTER) {
         for (uint i = 0; i < recipients.length; i++) {
+            require(merkleProofs[i].length == recipients.length, "merkleProofs length mismatch");
             _mintCardsTo(configId, merkleProofs[i], maxPrice, recipients[i]);
         }
     }
