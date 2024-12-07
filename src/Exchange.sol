@@ -250,6 +250,7 @@ contract Exchange is IExchange, EIP712, Ownable2Step, ReentrancyGuard {
      * @param minimuPrice The new minimum price
      */
     function setMinimumPricePerPaymentToken(address paymentToken, uint256 minimuPrice) public onlyOwner {
+        require(whitelistedPaymentTokens[paymentToken], "payment token not whitelisted");
         _setMinimumPricePerPaymentToken(paymentToken, minimuPrice);
     }
 
