@@ -302,6 +302,7 @@ contract Exchange is IExchange, EIP712, Ownable2Step, ReentrancyGuard {
 
         if (burnAfterPurchase) {
             executionDelegate.burnFantasyCard(sellOrder.collection, sellOrder.tokenId);
+            emit BuyAndBurn(msg.sender, sellOrder, sellOrderHash);
         } else {
             _executeTokenTransfer(sellOrder.collection, sellOrder.trader, msg.sender, sellOrder.tokenId);
         }
