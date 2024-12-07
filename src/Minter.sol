@@ -307,7 +307,7 @@ contract Minter is IMinter, AccessControlDefaultAdminRules, ReentrancyGuard, Lin
                 IFantasyCards(collection).ownerOf(tokenIds[i]) == msg.sender,
                 "caller does not own one of the tokens"
             );
-            executionDelegate.burnFantasyCard(address(collection), tokenIds[i]);
+            executionDelegate.burnFantasyCard(address(collection), tokenIds[i], msg.sender);
         }
 
         uint256 mintedTokenId = IFantasyCards(collection).tokenCounter();
@@ -352,7 +352,7 @@ contract Minter is IMinter, AccessControlDefaultAdminRules, ReentrancyGuard, Lin
                 IFantasyCards(collection).ownerOf(tokenIds[i]) == msg.sender,
                 "caller does not own one of the tokens"
             );
-            executionDelegate.burnFantasyCard(address(collection), tokenIds[i]);
+            executionDelegate.burnFantasyCard(address(collection), tokenIds[i], msg.sender);
         }
 
         uint256[] memory drawnCardIds = new uint256[](cardsDrawnPerBurn);
@@ -379,9 +379,7 @@ contract Minter is IMinter, AccessControlDefaultAdminRules, ReentrancyGuard, Lin
         // check that the caller owns all the tokens
         for (uint i = 0; i < tokenIds.length; i++) {
             require(IFantasyCards(collection).ownerOf(tokenIds[i]) == msg.sender, "caller does not own one of the tokens");
-        }
-        for (uint i = 0; i < tokenIds.length; i++) {
-            executionDelegate.burnFantasyCard(address(collection), tokenIds[i]);
+            executionDelegate.burnFantasyCard(address(collection), tokenIds[i], msg.sender);
         }
         emit BatchBurn(tokenIds, collection, msg.sender);
     }
