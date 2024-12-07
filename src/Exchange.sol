@@ -301,6 +301,7 @@ contract Exchange is IExchange, EIP712, Ownable2Step, ReentrancyGuard {
         _executeFundsTransfer(msg.sender, sellOrder.trader, sellOrder.paymentToken, sellOrder.price);
 
         if (burnAfterPurchase) {
+            require(whitelistedCollections[collection], "Collection is not whitelisted");
             executionDelegate.burnFantasyCard(sellOrder.collection, sellOrder.tokenId);
         } else {
             _executeTokenTransfer(sellOrder.collection, sellOrder.trader, msg.sender, sellOrder.tokenId);
