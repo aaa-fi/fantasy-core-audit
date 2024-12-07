@@ -299,6 +299,8 @@ contract Exchange is IExchange, EIP712, Ownable2Step, ReentrancyGuard {
         cancelledOrFilled[sellOrderHash] = true;
 
         _executeFundsTransfer(msg.sender, sellOrder.trader, sellOrder.paymentToken, sellOrder.price);
+        
+        emit Buy(msg.sender, sellOrder, sellOrderHash);
 
         if (burnAfterPurchase) {
             executionDelegate.burnFantasyCard(sellOrder.collection, sellOrder.tokenId);
@@ -307,7 +309,6 @@ contract Exchange is IExchange, EIP712, Ownable2Step, ReentrancyGuard {
             _executeTokenTransfer(sellOrder.collection, sellOrder.trader, msg.sender, sellOrder.tokenId);
         }
 
-        emit Buy(msg.sender, sellOrder, sellOrderHash);
     }
 
     /**
