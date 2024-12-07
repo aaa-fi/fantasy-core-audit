@@ -97,49 +97,11 @@ contract Minter is IMinter, AccessControlDefaultAdminRules, ReentrancyGuard, Lin
         bytes32[] calldata merkleProof,
         uint256 maxPrice
     ) public payable nonReentrant onlyEOA {
-        MintConfig storage mintConfig = mintConfigs[configId];
-        require(mintConfig.startTimestamp <= block.timestamp, "Mint config not started");
-        require(
-            mintConfig.expirationTimestamp == 0 || mintConfig.expirationTimestamp > block.timestamp,
-            "Mint config expired"
-        );
-        require(!mintConfig.cancelled, "Mint config cancelled");
-        require(
-            !mintConfig.requiresWhitelist || _verifyWhitelist(mintConfig.merkleRoot, merkleProof, msg.sender),
-            "User not whitelisted"
-        );
-        require(
-            mintConfig.maxPacksPerAddress == 0 ||
-                mintConfig.amountMintedPerAddress[msg.sender] < mintConfig.maxPacksPerAddress,
-            "User reached max mint limit"
-        );
-        require(mintConfig.maxPacks > mintConfig.totalMintedPacks, "No packs left");
-
-        // compute the price before incrementing the total packs minted since it will push the price up otherwise
-        uint256 price = getPackPrice(configId);
-        require(price <= maxPrice, "Price too high");
-
-        mintConfig.totalMintedPacks += 1;
-        mintConfig.amountMintedPerAddress[msg.sender] += 1;
-
-        _executeFundsTransfer(mintConfig.paymentToken, msg.sender, treasury, price);
-
-        uint256 firstTokenId = IFantasyCards(mintConfig.collection).tokenCounter();
-
-        _executeBatchMint(mintConfig.collection, mintConfig.cardsPerPack, msg.sender);
-
-        emit Mint(
-            configId,
-            msg.sender,
-            mintConfig.totalMintedPacks,
-            firstTokenId,
-            firstTokenId + mintConfig.cardsPerPack - 1,
-            price
-        );
+      _mint(configId, merkleProof, maxPrice, msg.sender);
     }
 
     /**
-     * @notice Admin function to mints packs based on the specified mint configuration to multiple recipients
+     * @notice Admin function to mint packs based on the specified mint configuration to multiple recipients
      * @dev Requires the mint configuration not to be cancelled, the user to be whitelisted (if applicable), and not to have minted before (if applicable). Transfers the payment and mints the NFTs.
      * @param configId ID of the mint configuration to use
      * @param merkleProofs Proofs for whitelist verifications, if required
@@ -148,18 +110,18 @@ contract Minter is IMinter, AccessControlDefaultAdminRules, ReentrancyGuard, Lin
      */
     function batchMintCardsTo(uint256 configId, bytes32[][] calldata merkleProofs, uint256 maxPrice, address[] calldata recipients) public payable nonReentrant onlyEOA onlyRole(MINT_CONFIG_MASTER) {
         for (uint i = 0; i < recipients.length; i++) {
-            _mintCardsTo(configId, merkleProofs[i], maxPrice, recipients[i]);
+            _mint(configId, merkleProofs[i], maxPrice, recipients[i]);
         }
     }
 
     /**
-     * @dev Internal function to mint packs based on the specified mint configuration to a single recipient. This function is a very close cousin of the mint function.
+     * @dev Internal function to mint packs based on the specified mint configuration to a single recipient.
      * @param configId ID of the mint configuration to use
      * @param merkleProof Proof for whitelist verification, if required
      * @param maxPrice Maximum price the user is willing to pay
      * @param recipient Address to mint packs to
      */
-    function _mintCardsTo(uint256 configId, bytes32[] calldata merkleProof, uint256 maxPrice, address recipient) internal {
+    function _mint(uint256 configId, bytes32[] calldata merkleProof, uint256 maxPrice, address recipient) internal {
         MintConfig storage mintConfig = mintConfigs[configId];
         require(mintConfig.startTimestamp <= block.timestamp, "Mint config not started");
         require(
@@ -379,8 +341,6 @@ contract Minter is IMinter, AccessControlDefaultAdminRules, ReentrancyGuard, Lin
         // check that the caller owns all the tokens
         for (uint i = 0; i < tokenIds.length; i++) {
             require(IFantasyCards(collection).ownerOf(tokenIds[i]) == msg.sender, "caller does not own one of the tokens");
-        }
-        for (uint i = 0; i < tokenIds.length; i++) {
             executionDelegate.burnFantasyCard(address(collection), tokenIds[i]);
         }
         emit BatchBurn(tokenIds, collection, msg.sender);
