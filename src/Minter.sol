@@ -227,6 +227,7 @@ contract Minter is IMinter, AccessControlDefaultAdminRules, ReentrancyGuard, Lin
         uint256 startTimestamp,
         uint256 expirationTimestamp
     ) public onlyRole(MINT_CONFIG_MASTER) {
+        require(whitelistedCollections[collection], "Collection is not whitelisted");
         require(collection != address(0), "Collection address cannot be 0x0");
         require(cardsPerPack > 0, "Cards per pack must be greater than 0");
         require(maxPacks > 0, "Max packs must be greater than 0");
@@ -394,6 +395,7 @@ contract Minter is IMinter, AccessControlDefaultAdminRules, ReentrancyGuard, Lin
      * @param collection The new collection address
      */
     function setCollectionForMintConfig(uint256 mintConfigId, address collection) public onlyRole(MINT_CONFIG_MASTER) {
+        require(whitelistedCollections[collection], "Collection is not whitelisted");
         require(mintConfigId < mintConfigIdCounter, "Invalid mintConfigId");
         require(collection != address(0), "Collection address cannot the zero address");
 
