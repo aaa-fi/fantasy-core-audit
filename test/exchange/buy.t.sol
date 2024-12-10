@@ -364,7 +364,7 @@ contract Buy is BaseTest {
         (uint8 vSeller, bytes32 rSeller, bytes32 sSeller) = vm.sign(user1PrivateKey, orderHash);
         bytes memory sellerSignature = abi.encodePacked(rSeller, sSeller, vSeller);
 
-        exchange.setMinimumPricePerPaymentToken(address(0), sellOrder.price + 1);
+        exchange.whiteListPaymentToken(address(0), sellOrder.price + 1);
 
         cheats.deal(user2, 1 ether);
 

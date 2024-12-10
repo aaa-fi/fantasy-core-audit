@@ -147,8 +147,8 @@ contract Minter is IMinter, AccessControlDefaultAdminRules, ReentrancyGuard, Lin
      * @param recipients Addresses to mint packs to
      */
     function batchMintCardsTo(uint256 configId, bytes32[][] calldata merkleProofs, uint256 maxPrice, address[] calldata recipients) public payable nonReentrant onlyEOA onlyRole(MINT_CONFIG_MASTER) {
+        require(merkleProofs.length == recipients.length, "merkleProofs length mismatch");
         for (uint i = 0; i < recipients.length; i++) {
-            require(merkleProofs[i].length == recipients.length, "merkleProofs length mismatch");
             _mintCardsTo(configId, merkleProofs[i], maxPrice, recipients[i]);
         }
     }
@@ -309,7 +309,7 @@ contract Minter is IMinter, AccessControlDefaultAdminRules, ReentrancyGuard, Lin
                 IFantasyCards(collection).ownerOf(tokenIds[i]) == msg.sender,
                 "caller does not own one of the tokens"
             );
-            executionDelegate.burnFantasyCard(address(collection), tokenIds[i]);
+            executionDelegate.burnFantasyCard(address(collection), tokenIds[i], msg.sender);
         }
 
         uint256 mintedTokenId = IFantasyCards(collection).tokenCounter();
@@ -354,7 +354,7 @@ contract Minter is IMinter, AccessControlDefaultAdminRules, ReentrancyGuard, Lin
                 IFantasyCards(collection).ownerOf(tokenIds[i]) == msg.sender,
                 "caller does not own one of the tokens"
             );
-            executionDelegate.burnFantasyCard(address(collection), tokenIds[i]);
+            executionDelegate.burnFantasyCard(address(collection), tokenIds[i], msg.sender);
         }
 
         uint256[] memory drawnCardIds = new uint256[](cardsDrawnPerBurn);
@@ -381,9 +381,7 @@ contract Minter is IMinter, AccessControlDefaultAdminRules, ReentrancyGuard, Lin
         // check that the caller owns all the tokens
         for (uint i = 0; i < tokenIds.length; i++) {
             require(IFantasyCards(collection).ownerOf(tokenIds[i]) == msg.sender, "caller does not own one of the tokens");
-        }
-        for (uint i = 0; i < tokenIds.length; i++) {
-            executionDelegate.burnFantasyCard(address(collection), tokenIds[i]);
+            executionDelegate.burnFantasyCard(address(collection), tokenIds[i], msg.sender);
         }
         emit BatchBurn(tokenIds, collection, msg.sender);
     }
