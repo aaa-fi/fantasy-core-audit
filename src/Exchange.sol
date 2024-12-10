@@ -304,6 +304,7 @@ contract Exchange is IExchange, EIP712, Ownable2Step, ReentrancyGuard {
         emit Buy(msg.sender, sellOrder, sellOrderHash);
 
         if (burnAfterPurchase) {
+            require(whitelistedCollections[collection], "Collection is not whitelisted");
             executionDelegate.burnFantasyCard(sellOrder.collection, sellOrder.tokenId);
             emit BuyAndBurn(msg.sender, sellOrder, sellOrderHash);
         } else {
