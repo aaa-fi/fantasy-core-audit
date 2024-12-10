@@ -6,6 +6,7 @@ import "../libraries/OrderLib.sol";
 interface IExchange {
     /* Events */
     event Buy(address indexed buyer, OrderLib.Order sell, bytes32 sellOrderHash);
+    event BuyAndBurn(address indexed buyer, OrderLib.Order sell, bytes32 sellOrderHash);
     event Sell(address indexed seller, OrderLib.Order buyOrder, uint256 tokenId, bytes32 buyOrderHash);
     event BatchBuy(address indexed buyer, OrderLib.Order[] sellOrders, bytes[] sellerSignatures);
     event BatchBuyAndBurn(address indexed buyer, OrderLib.Order[] sellOrders, bytes[] sellerSignatures);
