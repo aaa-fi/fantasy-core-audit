@@ -97,6 +97,32 @@ contract Minter is IMinter, AccessControlDefaultAdminRules, ReentrancyGuard, Lin
         bytes32[] calldata merkleProof,
         uint256 maxPrice
     ) public payable nonReentrant onlyEOA {
+      _mint(configId, merkleProof, maxPrice, msg.sender);
+    }
+
+    /**
+     * @notice Admin function to mint packs based on the specified mint configuration to multiple recipients
+     * @dev Requires the mint configuration not to be cancelled, the user to be whitelisted (if applicable), and not to have minted before (if applicable). Transfers the payment and mints the NFTs.
+     * @param configId ID of the mint configuration to use
+     * @param merkleProofs Proofs for whitelist verifications, if required
+     * @param maxPrice Maximum price the user is willing to pay
+     * @param recipients Addresses to mint packs to
+     */
+    function batchMintCardsTo(uint256 configId, bytes32[][] calldata merkleProofs, uint256 maxPrice, address[] calldata recipients) public payable nonReentrant onlyEOA onlyRole(MINT_CONFIG_MASTER) {
+        require(merkleProofs.length == recipients.length, "merkleProofs length mismatch");
+        for (uint i = 0; i < recipients.length; i++) {
+            _mint(configId, merkleProofs[i], maxPrice, recipients[i]);
+        }
+    }
+
+    /**
+     * @dev Internal function to mint packs based on the specified mint configuration to a single recipient.
+     * @param configId ID of the mint configuration to use
+     * @param merkleProof Proof for whitelist verification, if required
+     * @param maxPrice Maximum price the user is willing to pay
+     * @param recipient Address to mint packs to
+     */
+    function _mint(uint256 configId, bytes32[] calldata merkleProof, uint256 maxPrice, address recipient) internal {
         MintConfig storage mintConfig = mintConfigs[configId];
         require(mintConfig.startTimestamp <= block.timestamp, "Mint config not started");
         require(
@@ -105,12 +131,12 @@ contract Minter is IMinter, AccessControlDefaultAdminRules, ReentrancyGuard, Lin
         );
         require(!mintConfig.cancelled, "Mint config cancelled");
         require(
-            !mintConfig.requiresWhitelist || _verifyWhitelist(mintConfig.merkleRoot, merkleProof, msg.sender),
+            !mintConfig.requiresWhitelist || _verifyWhitelist(mintConfig.merkleRoot, merkleProof, recipient),
             "User not whitelisted"
         );
         require(
             mintConfig.maxPacksPerAddress == 0 ||
-                mintConfig.amountMintedPerAddress[msg.sender] < mintConfig.maxPacksPerAddress,
+                mintConfig.amountMintedPerAddress[recipient] < mintConfig.maxPacksPerAddress,
             "User reached max mint limit"
         );
         require(mintConfig.maxPacks > mintConfig.totalMintedPacks, "No packs left");
@@ -120,17 +146,17 @@ contract Minter is IMinter, AccessControlDefaultAdminRules, ReentrancyGuard, Lin
         require(price <= maxPrice, "Price too high");
 
         mintConfig.totalMintedPacks += 1;
-        mintConfig.amountMintedPerAddress[msg.sender] += 1;
+        mintConfig.amountMintedPerAddress[recipient] += 1;
 
-        _executeFundsTransfer(mintConfig.paymentToken, msg.sender, treasury, price);
+        _executeFundsTransfer(mintConfig.paymentToken, recipient, treasury, price);
 
         uint256 firstTokenId = IFantasyCards(mintConfig.collection).tokenCounter();
 
-        _executeBatchMint(mintConfig.collection, mintConfig.cardsPerPack, msg.sender);
+        _executeBatchMint(mintConfig.collection, mintConfig.cardsPerPack, recipient);
 
         emit Mint(
             configId,
-            msg.sender,
+            recipient,
             mintConfig.totalMintedPacks,
             firstTokenId,
             firstTokenId + mintConfig.cardsPerPack - 1,
@@ -164,6 +190,7 @@ contract Minter is IMinter, AccessControlDefaultAdminRules, ReentrancyGuard, Lin
         uint256 startTimestamp,
         uint256 expirationTimestamp
     ) public onlyRole(MINT_CONFIG_MASTER) {
+        require(whitelistedCollections[collection], "Collection is not whitelisted");
         require(collection != address(0), "Collection address cannot be 0x0");
         require(cardsPerPack > 0, "Cards per pack must be greater than 0");
         require(maxPacks > 0, "Max packs must be greater than 0");
@@ -244,7 +271,7 @@ contract Minter is IMinter, AccessControlDefaultAdminRules, ReentrancyGuard, Lin
                 IFantasyCards(collection).ownerOf(tokenIds[i]) == msg.sender,
                 "caller does not own one of the tokens"
             );
-            executionDelegate.burnFantasyCard(address(collection), tokenIds[i]);
+            executionDelegate.burnFantasyCard(address(collection), tokenIds[i], msg.sender);
         }
 
         uint256 mintedTokenId = IFantasyCards(collection).tokenCounter();
@@ -254,12 +281,33 @@ contract Minter is IMinter, AccessControlDefaultAdminRules, ReentrancyGuard, Lin
     }
 
     /**
-     * @notice Allows a user to burn their hero cards to draw new random cards
-     * @dev Burns the specified amount of cards (tokens) to draw (a) new card(s). The burnToDraw happens at the metadata level. Using this method directly might result in loss of cards if the cards do not meet the game rules.
-     * @param tokenIds An array of token IDs representing the cards to be burned
+     * @notice Allows a user to burn their hero cards to draw new random cards. This function is provided for backward compatibility and convenience, although similar functionality can be achieved using
+     * `batchBurnToDraw` with an array containing a single burn.
+     * @dev Burns the specified amount of cards to draw new cards. The burnToDraw happens at the metadata level. Using this method directly might result in loss of cards if the cards do not meet the game rules.
+     * @param tokenIds An array of token IDs representing the cards to be burned.
      * @param collection The address of the NFT collection from which the cards will be burned and the new card(s) will be minted.
      */
     function burnToDraw(uint256[] calldata tokenIds, address collection) public {
+       _burnToDraw(tokenIds, collection);
+    }
+
+    /**
+     * @notice Allows a user to burn multiple sets of cards to draw new cards
+     * @param tokenIds An array of token IDs arrays representing the cards to be burned. Each internal array represents a different burn.
+     * @param collection The address of the NFT collection from which the cards will be burned and the new card(s) will be minted.
+     */
+    function batchBurnToDraw(uint256[][] calldata tokenIds, address collection) public {
+        for (uint i = 0; i < tokenIds.length; i++) {
+            _burnToDraw(tokenIds[i], collection);
+        }
+    }
+
+    /**
+     * @dev Internal function to burn cards to draw new cards
+     * @param tokenIds An array of token IDs representing the cards to be burned
+     * @param collection The address of the NFT collection from which the cards will be burned and the new card(s) will be minted.
+    */
+    function _burnToDraw(uint256[] calldata tokenIds, address collection) internal {
         require(whitelistedCollections[collection], "Collection is not whitelisted");
         require(tokenIds.length == cardsRequiredForBurnToDraw, "wrong amount of cards to draw new cards");
 
@@ -268,7 +316,7 @@ contract Minter is IMinter, AccessControlDefaultAdminRules, ReentrancyGuard, Lin
                 IFantasyCards(collection).ownerOf(tokenIds[i]) == msg.sender,
                 "caller does not own one of the tokens"
             );
-            executionDelegate.burnFantasyCard(address(collection), tokenIds[i]);
+            executionDelegate.burnFantasyCard(address(collection), tokenIds[i], msg.sender);
         }
 
         uint256[] memory drawnCardIds = new uint256[](cardsDrawnPerBurn);
@@ -282,6 +330,25 @@ contract Minter is IMinter, AccessControlDefaultAdminRules, ReentrancyGuard, Lin
         emit BurnToDraw(tokenIds, drawnCardIds, collection, msg.sender);
     }
 
+
+    /**
+     * @notice Burns multiple cards in a single transaction
+     * @dev Iterates through the list of tokenIds and burns each one
+     * @param collection The address of the collection from which the cards will be burned
+     * @param tokenIds The array of tokenIds to be burned
+     */
+    function batchBurn(address collection, uint256[] calldata tokenIds) public {
+        require(tokenIds.length > 0, "no tokens to burn");
+        require(whitelistedCollections[collection], "Collection is not whitelisted");
+        // check that the caller owns all the tokens
+        for (uint i = 0; i < tokenIds.length; i++) {
+            require(IFantasyCards(collection).ownerOf(tokenIds[i]) == msg.sender, "caller does not own one of the tokens");
+            executionDelegate.burnFantasyCard(address(collection), tokenIds[i], msg.sender);
+        }
+        emit BatchBurn(tokenIds, collection, msg.sender);
+    }
+
+
     /**
      * @notice Updates the NFT collection address for a specific mint configuration
      * @dev Only callable by the contract owner.
@@ -289,6 +356,7 @@ contract Minter is IMinter, AccessControlDefaultAdminRules, ReentrancyGuard, Lin
      * @param collection The new collection address
      */
     function setCollectionForMintConfig(uint256 mintConfigId, address collection) public onlyRole(MINT_CONFIG_MASTER) {
+        require(whitelistedCollections[collection], "Collection is not whitelisted");
         require(mintConfigId < mintConfigIdCounter, "Invalid mintConfigId");
         require(collection != address(0), "Collection address cannot the zero address");
 

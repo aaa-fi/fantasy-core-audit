@@ -68,9 +68,10 @@ contract Exchange is IExchange, EIP712, Ownable2Step, ReentrancyGuard {
      */
     function buy(
         OrderLib.Order calldata sellOrder,
-        bytes calldata sellerSignature
+        bytes calldata sellerSignature,
+        bool burnAfterPurchase
     ) public payable nonReentrant onlyEOA {
-        _buy(sellOrder, sellerSignature);
+        _buy(sellOrder, sellerSignature, burnAfterPurchase);
     }
 
     /**
@@ -78,10 +79,12 @@ contract Exchange is IExchange, EIP712, Ownable2Step, ReentrancyGuard {
      * @dev Iterates over `sellOrders` and `sellerSignatures`, executing each through `_buy`.
      * @param sellOrders Array of sell orders, each following `OrderLib.Order` structure.
      * @param sellerSignatures Array of signatures, each corresponding to a sell order in `sellOrders`.
+     * @param burnAfterPurchase Whether to burn the NFT(s) after the purchase
      */
     function batchBuy(
         OrderLib.Order[] calldata sellOrders,
-        bytes[] calldata sellerSignatures
+        bytes[] calldata sellerSignatures,
+        bool burnAfterPurchase
     ) public payable nonReentrant onlyEOA {
         require(sellOrders.length == sellerSignatures.length, "Array length mismatch");
 
@@ -93,7 +96,13 @@ contract Exchange is IExchange, EIP712, Ownable2Step, ReentrancyGuard {
                 totalEthSpending += sellOrders[i].price;
                 require(totalEthSpending <= msg.value, "Insufficient ETH sent");
             }
-            _buy(sellOrders[i], sellerSignatures[i]);
+            _buy(sellOrders[i], sellerSignatures[i], burnAfterPurchase);
+        }
+
+        if (burnAfterPurchase) {
+            emit BatchBuyAndBurn(msg.sender, sellOrders, sellerSignatures);
+        } else {
+            emit BatchBuy(msg.sender, sellOrders, sellerSignatures);
         }
     }
 
@@ -111,48 +120,55 @@ contract Exchange is IExchange, EIP712, Ownable2Step, ReentrancyGuard {
         uint256 tokenId,
         bytes32[] calldata merkleProof
     ) public payable nonReentrant onlyEOA {
-        require(buyOrder.paymentToken != address(0), "payment token can not be ETH for buy order");
-        require(buyOrder.side == OrderLib.Side.Buy, "order must be a buy");
-        require(buyOrder.expirationTime > block.timestamp, "order expired");
-        require(buyOrder.trader != address(0), "order trader is 0");
-        require(buyOrder.price >= minimumPricePerPaymentToken[buyOrder.paymentToken], "price bellow minimumPrice");
-        require(buyOrder.salt > 100_000, "salt should be above 100_000");
+        _sell(buyOrder, buyerSignature, tokenId, merkleProof);
+    }
 
-        bytes32 buyOrderHash = OrderLib._hashOrder(buyOrder);
-        require(cancelledOrFilled[buyOrderHash] == false, "buy order cancelled or filled");
 
-        bytes32 buyOrderDigest = _hashTypedDataV4(buyOrderHash);
-        address buyOrderSigner = ECDSA.recover(buyOrderDigest, buyerSignature);
-        require(buyOrderSigner == buyOrder.trader, "invalid signature");
+    /**
+     * @notice Executes multiple sell transactions in one call.
+     * @dev Iterates over `buyOrders`, `buyerSignatures`, `tokenIds`, and `merkleProofs`, executing each through `_sell`.
+     * @param buyOrders Array of buy orders, each following `OrderLib.Order` structure.
+     * @param buyerSignatures Array of signatures, each corresponding to a buy order in `buyOrders`.
+     * @param tokenIds Array of token IDs, each corresponding to a buy order in `buyOrders`.
+     * @param merkleProofs Array of merkle proofs, each corresponding to a token ID in `tokenIds`.
+     */
+    function batchSell(
+        OrderLib.Order[] calldata buyOrders,
+        bytes[] calldata buyerSignatures,
+        uint256[] calldata tokenIds,
+        bytes32[][] calldata merkleProofs
+    ) public payable nonReentrant onlyEOA {
+        require(buyOrders.length == buyerSignatures.length, "Array length mismatch");
+        require(buyOrders.length == tokenIds.length, "Array length mismatch");
+        require(buyOrders.length == merkleProofs.length, "Array length mismatch");
 
-        require(_verifyTokenId(buyOrder.merkleRoot, merkleProof, tokenId), "invalid tokenId");
+        for (uint256 i = 0; i < buyOrders.length; i++) {
+            _sell(buyOrders[i], buyerSignatures[i], tokenIds[i], merkleProofs[i]);
+        }
 
-        cancelledOrFilled[buyOrderHash] = true;
-
-        _executeFundsTransfer(buyOrder.trader, msg.sender, buyOrder.paymentToken, buyOrder.price);
-
-        _executeTokenTransfer(buyOrder.collection, msg.sender, buyOrder.trader, tokenId);
-
-        emit Sell(
-            msg.sender, // Seller's address
-            buyOrder, // The buy order details
-            tokenId, // The ID of the token being sold
-            buyOrderHash // The hash of the buy order
-        );
+        emit BatchSell(msg.sender, buyOrders, tokenIds, merkleProofs);
     }
 
     /**
-     * @notice Cancels an order, preventing it from being executed
+     * @notice Cancels an order, preventing it from being executed. This function is provided for backward compatibility and convenience, although similar functionality can be achieved using
+     * `batchCancelOrders` with an array containing a single order.
      * @dev Sets the order's hash in the `cancelledOrFilled` mapping to true
      * @param order The order to cancel
      */
     function cancelOrder(OrderLib.Order calldata order) public {
-        require(order.trader == msg.sender, "msg.sender is not the trader");
+        _cancelOrder(order);
+    }
 
-        bytes32 orderHash = OrderLib._hashOrder(order);
-        cancelledOrFilled[orderHash] = true;
 
-        emit CancelOrder(orderHash);
+    /**
+     * @notice Cancels multiple orders in a single transaction to save gas and streamline order management.
+     * @dev Iterates through the list of orders and calls the internal _cancelOrder function for each order
+     * @param orders The array of orders to be cancelled
+     */
+    function batchCancelOrders(OrderLib.Order[] calldata orders) public {
+        for (uint256 i = 0; i < orders.length; i++) {
+            _cancelOrder(orders[i]);
+        }
     }
 
     /**
@@ -234,6 +250,7 @@ contract Exchange is IExchange, EIP712, Ownable2Step, ReentrancyGuard {
      * @param minimuPrice The new minimum price
      */
     function setMinimumPricePerPaymentToken(address paymentToken, uint256 minimuPrice) public onlyOwner {
+        require(whitelistedPaymentTokens[paymentToken], "payment token not whitelisted");
         _setMinimumPricePerPaymentToken(paymentToken, minimuPrice);
     }
 
@@ -264,8 +281,9 @@ contract Exchange is IExchange, EIP712, Ownable2Step, ReentrancyGuard {
      * @dev Verifies the validity of the sell order and executes funds and token transfer
      * @param sellOrder The sell order to match with
      * @param sellerSignature Signature of the seller to validate the order
+     * @param burnAfterPurchase Whether to burn the NFT after the purchase
      */
-    function _buy(OrderLib.Order calldata sellOrder, bytes calldata sellerSignature) internal {
+    function _buy(OrderLib.Order calldata sellOrder, bytes calldata sellerSignature, bool burnAfterPurchase) internal {
         require(sellOrder.side == OrderLib.Side.Sell, "order must be a sell");
         require(sellOrder.expirationTime > block.timestamp, "order expired");
         require(sellOrder.trader != address(0), "order trader is 0");
@@ -282,10 +300,75 @@ contract Exchange is IExchange, EIP712, Ownable2Step, ReentrancyGuard {
         cancelledOrFilled[sellOrderHash] = true;
 
         _executeFundsTransfer(msg.sender, sellOrder.trader, sellOrder.paymentToken, sellOrder.price);
-
-        _executeTokenTransfer(sellOrder.collection, sellOrder.trader, msg.sender, sellOrder.tokenId);
-
+        
         emit Buy(msg.sender, sellOrder, sellOrderHash);
+
+        if (burnAfterPurchase) {
+            require(whitelistedCollections[sellOrder.collection], "Collection is not whitelisted");
+            executionDelegate.burnFantasyCard(sellOrder.collection, sellOrder.tokenId, sellOrder.trader);
+            emit BuyAndBurn(msg.sender, sellOrder, sellOrderHash);
+        } else {
+            _executeTokenTransfer(sellOrder.collection, sellOrder.trader, msg.sender, sellOrder.tokenId);
+        }
+
+    }
+
+    /**
+     * @notice Internal function that executes a sell operation for a buy order
+     * @dev Verifies the validity of the buy order and executes funds and token transfer
+     * @param buyOrder The buy order to match with
+     * @param buyerSignature Signature of the buyer to validate the order
+     * @param tokenId The ID of the token being sold
+     * @param merkleProof The merkle proof verifying the tokenId belongs to the merkle root in the buy order
+     */
+    function _sell(
+        OrderLib.Order calldata buyOrder, 
+        bytes calldata buyerSignature, 
+        uint256 tokenId, 
+        bytes32[] calldata merkleProof
+    ) internal {
+        require(buyOrder.paymentToken != address(0), "payment token can not be ETH for buy order");
+        require(buyOrder.side == OrderLib.Side.Buy, "order must be a buy");
+        require(buyOrder.expirationTime > block.timestamp, "order expired");
+        require(buyOrder.trader != address(0), "order trader is 0");
+        require(buyOrder.price >= minimumPricePerPaymentToken[buyOrder.paymentToken], "price bellow minimumPrice");
+        require(buyOrder.salt > 100_000, "salt should be above 100_000");
+
+        bytes32 buyOrderHash = OrderLib._hashOrder(buyOrder);
+        require(cancelledOrFilled[buyOrderHash] == false, "buy order cancelled or filled");
+
+        bytes32 buyOrderDigest = _hashTypedDataV4(buyOrderHash);
+        address buyOrderSigner = ECDSA.recover(buyOrderDigest, buyerSignature);
+        require(buyOrderSigner == buyOrder.trader, "invalid signature");
+
+        require(_verifyTokenId(buyOrder.merkleRoot, merkleProof, tokenId), "invalid tokenId");
+
+        cancelledOrFilled[buyOrderHash] = true;
+
+        _executeFundsTransfer(buyOrder.trader, msg.sender, buyOrder.paymentToken, buyOrder.price);
+
+        _executeTokenTransfer(buyOrder.collection, msg.sender, buyOrder.trader, tokenId);
+
+        emit Sell(
+            msg.sender, // Seller's address
+            buyOrder, // The buy order details
+            tokenId, // The ID of the token being sold
+            buyOrderHash // The hash of the buy order
+        );
+    }
+
+    /**
+     * @notice Internal function that cancels an order
+     * @dev Requires that the caller is the trader specified in the order. Marks the order as cancelled or filled and emits a CancelOrder event.
+     * @param order The order to be cancelled
+     */
+    function _cancelOrder(OrderLib.Order calldata order) internal {
+        require(order.trader == msg.sender, "msg.sender is not the trader");
+
+        bytes32 orderHash = OrderLib._hashOrder(order);
+        cancelledOrFilled[orderHash] = true;
+
+        emit CancelOrder(orderHash);
     }
 
     /**

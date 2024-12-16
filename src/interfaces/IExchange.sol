@@ -6,7 +6,11 @@ import "../libraries/OrderLib.sol";
 interface IExchange {
     /* Events */
     event Buy(address indexed buyer, OrderLib.Order sell, bytes32 sellOrderHash);
+    event BuyAndBurn(address indexed buyer, OrderLib.Order sell, bytes32 sellOrderHash);
     event Sell(address indexed seller, OrderLib.Order buyOrder, uint256 tokenId, bytes32 buyOrderHash);
+    event BatchBuy(address indexed buyer, OrderLib.Order[] sellOrders, bytes[] sellerSignatures);
+    event BatchBuyAndBurn(address indexed buyer, OrderLib.Order[] sellOrders, bytes[] sellerSignatures);
+    event BatchSell(address indexed seller, OrderLib.Order[] buyOrders, uint256[] tokenIds, bytes32[][] merkleProofs);
     event CancelOrder(bytes32 orderHash);
     event NewWhitelistedPaymentToken(address paymentToken);
     event UnWhitelistedPaymentToken(address paymentToken);
@@ -18,7 +22,7 @@ interface IExchange {
     event NewMinimumPricePerPaymentToken(address paymentToken, uint256 minimuPrice);
 
     /* Functions */
-    function buy(OrderLib.Order calldata sellOrder, bytes calldata sellerSignature) external payable;
+    function buy(OrderLib.Order calldata sellOrder, bytes calldata sellerSignature, bool burnAfterPurchase) external payable;
 
     function sell(
         OrderLib.Order calldata buyOrder,

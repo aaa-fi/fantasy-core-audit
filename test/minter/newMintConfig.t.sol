@@ -8,6 +8,7 @@ contract NewMintConfig is BaseTest {
     }
 
     function test_successful_newMintConfig() public {
+        minter.whiteListCollection(address(0x1));
         // Act
         cheats.startPrank(mintConfigMaster);
         minter.newMintConfig(
@@ -55,6 +56,7 @@ contract NewMintConfig is BaseTest {
     }
 
     function test_mintConfigIdCounter() public {
+        minter.whiteListCollection(address(0x1));
         // Arrange
         address collection = address(0x1);
         uint256 cardsPerPack = 10;

@@ -29,13 +29,15 @@ abstract contract BaseTest is Test {
     uint256 mintConfigMasterPrivateKey = 0xdbda1821b80551c9d65939329250298aa3472ba22feea921c0cf5d620ea67b97;
     uint256 user1PrivateKey = 0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a;
     uint256 user2PrivateKey = 0x7c852118294e51e653712a81e05800f419141751be58f605c371e15141b007a6;
-
+    uint256 user3PrivateKey = 0x47e17f898ffc4d5f763548ea3b3cf9bb1230d213d0a008a1d4775c66c71f4767;
+    
     address deployer = vm.addr(deployerPrivateKey);
     address treasury = vm.addr(treasuryPrivateKey);
     address pauserAndCanceler = vm.addr(pauserAndCancelerPrivateKey);
     address mintConfigMaster = vm.addr(mintConfigMasterPrivateKey);
     address user1 = vm.addr(user1PrivateKey);
     address user2 = vm.addr(user2PrivateKey);
+    address user3 = vm.addr(user3PrivateKey);
 
     uint256 protocolFeeBps = 300;
     uint256 cardsRequiredForLevelUp = 5;

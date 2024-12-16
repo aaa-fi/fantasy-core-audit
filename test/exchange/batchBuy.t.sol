@@ -70,7 +70,7 @@ contract Buy is BaseTest {
 
         // Execute buy
         cheats.startPrank(user2, user2);
-        exchange.batchBuy{value: totalPrice}(sellOrders, sellerSignatures);
+        exchange.batchBuy{value: totalPrice}(sellOrders, sellerSignatures, false);
         cheats.stopPrank();
 
         assertEq(treasury.balance, (totalPrice * exchange.protocolFeeBps()) / exchange.INVERSE_BASIS_POINT());
@@ -134,7 +134,7 @@ contract Buy is BaseTest {
 
         // Execute buy
         cheats.startPrank(user2, user2);
-        exchange.batchBuy(sellOrders, sellerSignatures);
+        exchange.batchBuy(sellOrders, sellerSignatures, false);
         cheats.stopPrank();
 
         assertEq(weth.balanceOf(treasury), (totalPrice * exchange.protocolFeeBps()) / exchange.INVERSE_BASIS_POINT());
@@ -198,7 +198,7 @@ contract Buy is BaseTest {
 
         // Execute buy
         cheats.startPrank(user2, user2);
-        exchange.batchBuy{value: 1 ether}(sellOrders, sellerSignatures);
+        exchange.batchBuy{value: 1 ether}(sellOrders, sellerSignatures, false);
         cheats.stopPrank();
 
         assertEq(treasury.balance, (1 ether * exchange.protocolFeeBps()) / exchange.INVERSE_BASIS_POINT());
@@ -262,7 +262,7 @@ contract Buy is BaseTest {
         // Execute buy
         cheats.startPrank(user2, user2);
         cheats.expectRevert("Insufficient ETH sent");
-        exchange.batchBuy{value: totalPrice - 1}(sellOrders, sellerSignatures);
+        exchange.batchBuy{value: totalPrice - 1}(sellOrders, sellerSignatures, false);
         cheats.stopPrank();
     }
 
@@ -321,7 +321,7 @@ contract Buy is BaseTest {
         // Execute buy
         cheats.startPrank(user2, user2);
         cheats.expectRevert(); // REVIEW: proper error message
-        exchange.batchBuy(sellOrders, sellerSignatures);
+        exchange.batchBuy(sellOrders, sellerSignatures, false);
         cheats.stopPrank();
     }
 
@@ -346,7 +346,7 @@ contract Buy is BaseTest {
         // Execute buy
         cheats.startPrank(user2, user2);
         cheats.expectRevert("Array length mismatch");
-        exchange.batchBuy(sellOrders, sellerSignatures);
+        exchange.batchBuy(sellOrders, sellerSignatures, false);
         cheats.stopPrank();
     }
 }

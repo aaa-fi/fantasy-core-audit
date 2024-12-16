@@ -88,7 +88,8 @@ contract ExecutionDelegate is IExecutionDelegate, AccessControlDefaultAdminRules
         IFantasyCards(collection).safeMint(to);
     }
 
-    function burnFantasyCard(address collection, uint256 tokenId) external whenNotPaused approvedContract {
+    function burnFantasyCard(address collection, uint256 tokenId, address from) external whenNotPaused approvedContract {
+        require(revokedApproval[from] == false, "User has revoked approval");
         IFantasyCards(collection).burn(tokenId);
     }
 

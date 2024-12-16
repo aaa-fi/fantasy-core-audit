@@ -27,7 +27,7 @@ contract TraderContract {
     // Function to initiate a buy on the Exchange contract
     function buyOnExchange(OrderLib.Order calldata sellOrder, bytes calldata sellerSignature) external payable {
         // Directly call the buy function of the Exchange contract
-        exchange.buy{value: msg.value}(sellOrder, sellerSignature);
+        exchange.buy{value: msg.value}(sellOrder, sellerSignature, false);
     }
 
     function batchBuyOnExchange(
@@ -35,7 +35,7 @@ contract TraderContract {
         bytes[] calldata sellerSignatures
     ) external payable {
         // Directly call the batchBuy function of the Exchange contract
-        exchange.batchBuy{value: msg.value}(sellOrders, sellerSignatures);
+        exchange.batchBuy{value: msg.value}(sellOrders, sellerSignatures, false);
     }
 
     // Function to initiate a sell on the Exchange contract
@@ -54,5 +54,14 @@ contract TraderContract {
 
     function mintOnMinter(uint256 configId, bytes32[] calldata merkleProof, uint256 maxPrice) public {
         minter.mint(configId, merkleProof, maxPrice);
+    }
+
+    function batchMintToOnMinter(
+        uint256 configId,
+        bytes32[][] calldata merkleProofs,
+        uint256 maxPrice,
+        address[] calldata recipients
+    ) external payable {
+        minter.batchMintCardsTo(configId, merkleProofs, maxPrice, recipients);
     }
 }
